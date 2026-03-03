@@ -1,14 +1,13 @@
 #!/bin/bash
 set -e
 
-echo "=== Current directory ==="
-pwd
+echo "=== Installing Node.js ==="
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt-get install -y nodejs
 
-echo "=== Directory contents ==="
-ls -la
-
-echo "=== Looking for frontend ==="
-find . -name "package.json" -not -path "*/node_modules/*"
+echo "=== Node/npm versions ==="
+node --version
+npm --version
 
 echo "=== Installing Python dependencies ==="
 pip install -r requirements.txt
