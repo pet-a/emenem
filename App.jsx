@@ -1,252 +1,247 @@
-import { useState, useEffect, useCallback } from "react";
-
-// All requests go to /api — in dev Vite proxies to localhost:8000,
-// in production they hit the same FastAPI server that serves this file.
-const API = "/api";
+import { useState, useEffect } from "react";
 
 export default function App() {
-  const [tasks, setTasks] = useState([]);
-  const [stats, setStats] = useState({ total: 0, done: 0, pending: 0 });
-  const [input, setInput] = useState("");
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  const fetchAll = useCallback(async () => {
-    try {
-      const [tasksRes, statsRes] = await Promise.all([
-        fetch(`${API}/tasks`),
-        fetch(`${API}/stats`),
-      ]);
-      if (!tasksRes.ok) throw new Error("Failed to load tasks");
-      setTasks(await tasksRes.json());
-      setStats(await statsRes.json());
-      setError(null);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    fetch("/api/dino")
+      .then((r) => r.json())
+      .then((d) => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  const addTask = async () => {
-    const title = input.trim();
-    if (!title) return;
-    setInput("");
-    try {
-      const res = await fetch(`${API}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
-      });
-      if (!res.ok) throw new Error();
-      const task = await res.json();
-      setTasks((t) => [...t, task]);
-      setStats((s) => ({ ...s, total: s.total + 1, pending: s.pending + 1 }));
-    } catch {
-      setError("Failed to add task");
-    }
-  };
-
-  const toggleTask = async (id) => {
-    const task = tasks.find((t) => t.id === id);
-    if (!task) return;
-    // Optimistic update
-    const newDone = !task.done;
-    setTasks((ts) => ts.map((t) => t.id === id ? { ...t, done: newDone } : t));
-    setStats((s) => ({
-      ...s,
-      done: s.done + (newDone ? 1 : -1),
-      pending: s.pending + (newDone ? -1 : 1),
-    }));
-    try {
-      await fetch(`${API}/tasks/${id}`, { method: "PATCH" });
-    } catch {
-      // Rollback on failure
-      setTasks((ts) => ts.map((t) => t.id === id ? { ...t, done: task.done } : t));
-      setStats((s) => ({
-        ...s,
-        done: s.done + (newDone ? -1 : 1),
-        pending: s.pending + (newDone ? 1 : -1),
-      }));
-    }
-  };
-
-  const deleteTask = async (id) => {
-    const task = tasks.find((t) => t.id === id);
-    // Optimistic update
-    setTasks((ts) => ts.filter((t) => t.id !== id));
-    setStats((s) => ({
-      ...s,
-      total: s.total - 1,
-      done: s.done - (task?.done ? 1 : 0),
-      pending: s.pending - (!task?.done ? 1 : 0),
-    }));
-    try {
-      await fetch(`${API}/tasks/${id}`, { method: "DELETE" });
-    } catch {
-      setError("Failed to delete task");
-      fetchAll(); // Re-sync on failure
-    }
-  };
-
-  const pct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
-
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0f", color: "#e8e6f0", fontFamily: "'DM Mono', 'Courier New', monospace", padding: "0" }}>
+    <div style={{
+      minHeight: "100vh",
+      background: "#0d1117",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      fontFamily: "'Courier New', monospace",
+      padding: "40px 20px",
+      position: "relative",
+      overflow: "hidden",
+    }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::selection { background: #5c4af0; color: #fff; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #0a0a0f; }
-        ::-webkit-scrollbar-thumb { background: #2a2a3f; border-radius: 2px; }
-        .task-row { transition: all 0.2s ease; border-bottom: 1px solid #16161f; }
-        .task-row:hover { background: #111118 !important; }
-        .task-row:hover .delete-btn { opacity: 1 !important; }
-        .delete-btn { opacity: 0; transition: opacity 0.2s; background: none; border: none; color: #3a3a5a; cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 6px; flex-shrink: 0; }
-        .delete-btn:hover { color: #f06060; }
-        .add-btn { background: #5c4af0; border: none; border-radius: 8px; padding: 12px 20px; color: #fff; font-size: 13px; font-family: inherit; font-weight: 500; cursor: pointer; letter-spacing: 0.05em; transition: background 0.2s; }
-        .add-btn:hover { background: #6d5cf7; }
-        .add-btn:active { transform: scale(0.97); }
-        .toggle-circle { transition: all 0.2s ease; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-        .toggle-circle:hover { filter: brightness(1.3); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-        .task-animate { animation: fadeIn 0.25s ease forwards; }
-        @keyframes barFill { from { width: 0; } to { width: var(--w); } }
-        .bar-fill { animation: barFill 1s ease forwards; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .spinner { width: 20px; height: 20px; border: 2px solid #1a1a2e; border-top-color: #5c4af0; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 48px auto; }
+
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(-1deg); }
+          50% { transform: translateY(-18px) rotate(1deg); }
+        }
+        @keyframes glitch {
+          0% { clip-path: inset(0 0 98% 0); transform: translate(-4px, 0); }
+          10% { clip-path: inset(40% 0 50% 0); transform: translate(4px, 0); }
+          20% { clip-path: inset(80% 0 5% 0); transform: translate(-2px, 0); }
+          30% { clip-path: inset(20% 0 70% 0); transform: translate(2px, 0); }
+          40% { clip-path: inset(60% 0 30% 0); transform: translate(-4px, 0); }
+          100% { clip-path: inset(0 0 98% 0); transform: translate(0, 0); }
+        }
+        @keyframes scanline {
+          0% { top: -10%; }
+          100% { top: 110%; }
+        }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse-border {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,140,0.4), inset 0 0 30px rgba(0,255,140,0.05); }
+          50% { box-shadow: 0 0 0 8px rgba(0,255,140,0), inset 0 0 60px rgba(0,255,140,0.1); }
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        .dino-wrap {
+          animation: float 4s ease-in-out infinite;
+          position: relative;
+        }
+        .dino-wrap::before, .dino-wrap::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E");
+          pointer-events: none;
+        }
+        .glitch-text {
+          position: relative;
+          font-family: 'Bebas Neue', cursive;
+          font-size: clamp(52px, 10vw, 96px);
+          color: #00ff8c;
+          letter-spacing: 4px;
+          line-height: 1;
+        }
+        .glitch-text::before {
+          content: attr(data-text);
+          position: absolute;
+          left: 0; top: 0;
+          color: #ff0055;
+          animation: glitch 4s infinite steps(1);
+          opacity: 0.7;
+        }
+        .card {
+          background: rgba(0,255,140,0.03);
+          border: 1px solid rgba(0,255,140,0.2);
+          border-radius: 2px;
+          padding: 28px 36px;
+          animation: pulse-border 3s ease-in-out infinite, fadeUp 0.8s ease forwards;
+          animation-delay: 0s, 0.4s;
+          opacity: 0;
+          max-width: 520px;
+          width: 100%;
+          position: relative;
+        }
+        .scanline {
+          position: fixed;
+          left: 0; right: 0;
+          height: 3px;
+          background: linear-gradient(transparent, rgba(0,255,140,0.08), transparent);
+          animation: scanline 6s linear infinite;
+          pointer-events: none;
+          z-index: 10;
+        }
+        .grid-bg {
+          position: fixed;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(0,255,140,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,255,140,0.03) 1px, transparent 1px);
+          background-size: 40px 40px;
+          pointer-events: none;
+        }
+        .tag {
+          display: inline-block;
+          font-family: 'Space Mono', monospace;
+          font-size: 10px;
+          color: #00ff8c;
+          border: 1px solid rgba(0,255,140,0.3);
+          padding: 2px 8px;
+          letter-spacing: 0.15em;
+          margin-bottom: 12px;
+        }
+        .cursor { animation: blink 1s step-end infinite; }
+        .endpoint-box {
+          background: rgba(0,0,0,0.4);
+          border: 1px solid rgba(0,255,140,0.15);
+          border-radius: 2px;
+          padding: 12px 16px;
+          margin-top: 20px;
+          font-family: 'Space Mono', monospace;
+          font-size: 12px;
+          color: rgba(0,255,140,0.6);
+          letter-spacing: 0.05em;
+        }
+        .method { color: #f0b429; }
+        .path { color: #00ff8c; }
       `}</style>
 
-      {/* Header */}
-      <div style={{ borderBottom: "1px solid #1a1a2e", padding: "28px 40px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "22px", fontWeight: 800, letterSpacing: "-0.5px", color: "#fff" }}>TASKR</div>
-          <div style={{ fontSize: "11px", color: "#4a4a6a", marginTop: "2px", letterSpacing: "0.05em" }}>FASTAPI + REACT + POSTGRES</div>
-        </div>
-        <div style={{
-          fontSize: "10px", padding: "5px 12px", borderRadius: "20px", letterSpacing: "0.08em",
-          border: `1px solid ${error ? "#3a1a1a" : "#1a3a1a"}`,
-          background: error ? "#1f0d0d" : "#0d1f0d",
-          color: error ? "#f06060" : "#4caf50",
-        }}>
-          {error ? "● ERROR" : "● LIVE"}
+      <div className="grid-bg" />
+      <div className="scanline" />
+
+      {/* Dino SVG — a cute anime-style dino girl illustrated in SVG */}
+      <div className="dino-wrap" style={{ marginBottom: "36px", animation: "float 4s ease-in-out infinite", opacity: 0, animationFillMode: "forwards" }}
+        style={{ marginBottom: "36px", animation: "float 4s ease-in-out infinite", opacity: 1 }}>
+        <svg width="220" height="260" viewBox="0 0 220 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+          {/* Body */}
+          <ellipse cx="110" cy="180" rx="52" ry="58" fill="#3ecf6e" />
+          {/* Belly */}
+          <ellipse cx="110" cy="190" rx="32" ry="38" fill="#a8f0c0" />
+          {/* Tail */}
+          <path d="M158 210 Q200 230 195 260 Q175 240 155 235 Z" fill="#3ecf6e" />
+          {/* Back spikes */}
+          <polygon points="80,130 72,105 88,120" fill="#00cc55" />
+          <polygon points="95,122 89,94 103,114" fill="#00cc55" />
+          <polygon points="111,118 107,88 120,112" fill="#00cc55" />
+          <polygon points="126,122 124,93 136,116" fill="#00cc55" />
+          {/* Neck */}
+          <ellipse cx="110" cy="135" rx="28" ry="22" fill="#3ecf6e" />
+          {/* Head */}
+          <ellipse cx="110" cy="102" rx="42" ry="38" fill="#3ecf6e" />
+          {/* Snout */}
+          <ellipse cx="110" cy="118" rx="22" ry="14" fill="#4ddf80" />
+          {/* Nostril */}
+          <circle cx="103" cy="116" r="2.5" fill="#2a9e4f" />
+          <circle cx="117" cy="116" r="2.5" fill="#2a9e4f" />
+          {/* Eyes - big anime eyes */}
+          <ellipse cx="92" cy="96" rx="14" ry="16" fill="white" />
+          <ellipse cx="128" cy="96" rx="14" ry="16" fill="white" />
+          <ellipse cx="94" cy="98" rx="9" ry="11" fill="#1a1a2e" />
+          <ellipse cx="130" cy="98" rx="9" ry="11" fill="#1a1a2e" />
+          {/* Pupils */}
+          <circle cx="96" cy="97" r="5" fill="#6644ff" />
+          <circle cx="132" cy="97" r="5" fill="#6644ff" />
+          {/* Eye shine */}
+          <circle cx="99" cy="93" r="2.5" fill="white" />
+          <circle cx="135" cy="93" r="2.5" fill="white" />
+          <circle cx="93" cy="100" r="1.2" fill="white" opacity="0.7" />
+          <circle cx="129" cy="100" r="1.2" fill="white" opacity="0.7" />
+          {/* Eyelashes */}
+          <line x1="82" y1="84" x2="78" y2="78" stroke="#1a1a2e" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="88" y1="81" x2="86" y2="74" stroke="#1a1a2e" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="95" y1="80" x2="95" y2="73" stroke="#1a1a2e" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="118" y1="81" x2="118" y2="74" stroke="#1a1a2e" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="125" y1="81" x2="127" y2="74" stroke="#1a1a2e" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="132" y1="84" x2="136" y2="78" stroke="#1a1a2e" strokeWidth="1.5" strokeLinecap="round" />
+          {/* Blush */}
+          <ellipse cx="80" cy="108" rx="10" ry="6" fill="#ff8faa" opacity="0.45" />
+          <ellipse cx="140" cy="108" rx="10" ry="6" fill="#ff8faa" opacity="0.45" />
+          {/* Smile */}
+          <path d="M100 122 Q110 130 120 122" stroke="#2a9e4f" strokeWidth="2" fill="none" strokeLinecap="round" />
+          {/* Arms */}
+          <ellipse cx="68" cy="172" rx="14" ry="22" fill="#3ecf6e" transform="rotate(-15 68 172)" />
+          <ellipse cx="152" cy="172" rx="14" ry="22" fill="#3ecf6e" transform="rotate(15 152 172)" />
+          {/* Little claws */}
+          <path d="M60 188 Q55 195 58 198" stroke="#2a9e4f" strokeWidth="2" fill="none" strokeLinecap="round" />
+          <path d="M66 191 Q63 199 66 202" stroke="#2a9e4f" strokeWidth="2" fill="none" strokeLinecap="round" />
+          <path d="M72 190 Q71 198 74 200" stroke="#2a9e4f" strokeWidth="2" fill="none" strokeLinecap="round" />
+          {/* Legs */}
+          <ellipse cx="90" cy="232" rx="18" ry="24" fill="#3ecf6e" />
+          <ellipse cx="130" cy="232" rx="18" ry="24" fill="#3ecf6e" />
+          {/* Feet */}
+          <ellipse cx="88" cy="253" rx="22" ry="9" fill="#2eb85c" />
+          <ellipse cx="130" cy="253" rx="22" ry="9" fill="#2eb85c" />
+          {/* Little bow on head */}
+          <path d="M95 70 Q105 60 110 68 Q115 60 125 70 Q115 75 110 70 Q105 75 95 70Z" fill="#ff6b9d" />
+          <circle cx="110" cy="70" r="4" fill="#ff3d7f" />
+          {/* Sparkles */}
+          <text x="168" y="85" fontSize="14" fill="#00ff8c" opacity="0.8">✦</text>
+          <text x="30" y="110" fontSize="10" fill="#00ff8c" opacity="0.6">✦</text>
+          <text x="175" y="145" fontSize="8" fill="#f0b429" opacity="0.7">★</text>
+        </svg>
+      </div>
+
+      {/* Title */}
+      <div style={{ textAlign: "center", marginBottom: "28px", animation: "fadeUp 0.6s ease forwards" }}>
+        <div className="glitch-text" data-text="DINO GIRL">DINO GIRL</div>
+        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "11px", color: "rgba(0,255,140,0.5)", letterSpacing: "0.3em", marginTop: "8px" }}>
+          API v1.0 <span className="cursor">_</span>
         </div>
       </div>
 
-      <div style={{ maxWidth: "680px", margin: "0 auto", padding: "40px 24px" }}>
-
-        {/* Error banner */}
-        {error && (
-          <div style={{ background: "#1f0d0d", border: "1px solid #3a1a1a", borderRadius: "8px", padding: "12px 16px", marginBottom: "24px", fontSize: "12px", color: "#f06060" }}>
-            {error}
-          </div>
-        )}
-
-        {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "36px" }}>
-          {[
-            { label: "TOTAL",   value: stats.total,   color: "#e8e6f0" },
-            { label: "DONE",    value: stats.done,    color: "#4caf50" },
-            { label: "PENDING", value: stats.pending, color: "#f0b429" },
-          ].map((s) => (
-            <div key={s.label} style={{ background: "#0f0f1a", border: "1px solid #1a1a2e", borderRadius: "8px", padding: "16px 20px" }}>
-              <div style={{ fontSize: "10px", color: "#4a4a6a", letterSpacing: "0.1em", marginBottom: "6px" }}>{s.label}</div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "28px", fontWeight: 800, color: s.color }}>{s.value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Progress */}
-        <div style={{ marginBottom: "32px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#4a4a6a", marginBottom: "8px", letterSpacing: "0.06em" }}>
-            <span>PROGRESS</span><span>{pct}%</span>
-          </div>
-          <div style={{ height: "3px", background: "#1a1a2e", borderRadius: "2px", overflow: "hidden" }}>
-            <div className="bar-fill" style={{ "--w": `${pct}%`, height: "100%", background: "linear-gradient(90deg, #5c4af0, #9c84ff)", borderRadius: "2px" }} />
-          </div>
-        </div>
-
-        {/* Add Task */}
-        <div style={{ display: "flex", gap: "8px", marginBottom: "28px" }}>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addTask()}
-            placeholder="new task..."
-            style={{
-              flex: 1, background: "#0f0f1a", border: "1px solid #1a1a2e", borderRadius: "8px",
-              padding: "12px 16px", color: "#e8e6f0", fontSize: "13px", fontFamily: "inherit",
-              outline: "none", transition: "border-color 0.2s",
-            }}
-            onFocus={(e) => (e.target.style.borderColor = "#5c4af0")}
-            onBlur={(e) => (e.target.style.borderColor = "#1a1a2e")}
-          />
-          <button className="add-btn" onClick={addTask}>+ ADD</button>
-        </div>
-
-        {/* Tasks */}
-        <div style={{ background: "#0f0f1a", border: "1px solid #1a1a2e", borderRadius: "10px", overflow: "hidden" }}>
+      {/* Card */}
+      <div className="card">
+        <div className="tag">GET /api/dino</div>
+        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "13px", color: "rgba(0,255,140,0.8)", lineHeight: 1.8 }}>
           {loading ? (
-            <div className="spinner" />
-          ) : tasks.length === 0 ? (
-            <div style={{ padding: "48px", textAlign: "center", color: "#2a2a4a", fontSize: "13px" }}>
-              no tasks yet — add one above
-            </div>
+            <span style={{ opacity: 0.5 }}>fetching dino data<span className="cursor">...</span></span>
+          ) : data ? (
+            <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{JSON.stringify(data, null, 2)}</pre>
           ) : (
-            tasks.map((task) => (
-              <div key={task.id} className="task-row task-animate"
-                style={{ display: "flex", alignItems: "center", gap: "14px", padding: "14px 20px", background: "transparent" }}>
-                <div
-                  className="toggle-circle"
-                  onClick={() => toggleTask(task.id)}
-                  style={{
-                    border: `2px solid ${task.done ? "#5c4af0" : "#2a2a4a"}`,
-                    background: task.done ? "#5c4af0" : "transparent",
-                  }}
-                >
-                  {task.done && (
-                    <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-                      <path d="M1 3.5L3.5 6L8 1" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <div style={{ flex: 1, fontSize: "13px", color: task.done ? "#3a3a5a" : "#c8c6e0", textDecoration: task.done ? "line-through" : "none" }}>
-                  {task.title}
-                </div>
-                <div style={{ fontSize: "10px", color: "#2a2a4a", letterSpacing: "0.05em", flexShrink: 0 }}>
-                  {new Date(task.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                </div>
-                <button className="delete-btn" onClick={() => deleteTask(task.id)}>×</button>
-              </div>
-            ))
+            <span style={{ color: "#ff4466" }}>connection failed — is the server running?</span>
           )}
         </div>
 
-        {/* API Endpoints */}
-        <div style={{ marginTop: "36px", background: "#0a0a0f", border: "1px solid #1a1a2e", borderRadius: "10px", padding: "20px" }}>
-          <div style={{ fontSize: "10px", color: "#4a4a6a", letterSpacing: "0.1em", marginBottom: "14px" }}>API ENDPOINTS</div>
-          {[
-            { method: "GET",    path: "/api/tasks",      desc: "list all tasks" },
-            { method: "POST",   path: "/api/tasks",      desc: "create a task" },
-            { method: "PATCH",  path: "/api/tasks/:id",  desc: "toggle done" },
-            { method: "DELETE", path: "/api/tasks/:id",  desc: "remove task" },
-            { method: "GET",    path: "/api/stats",      desc: "task statistics" },
-            { method: "GET",    path: "/api/health",     desc: "health check" },
-          ].map((ep) => (
-            <div key={ep.method + ep.path} style={{ display: "flex", gap: "12px", alignItems: "center", padding: "5px 0", borderBottom: "1px solid #0f0f1a" }}>
-              <span style={{
-                fontSize: "10px", fontWeight: 500, letterSpacing: "0.06em", minWidth: "55px",
-                color: ep.method === "GET" ? "#4caf50" : ep.method === "POST" ? "#5c9af0" : ep.method === "DELETE" ? "#f06060" : "#f0b429",
-              }}>{ep.method}</span>
-              <span style={{ fontSize: "12px", color: "#8888aa", minWidth: "160px" }}>{ep.path}</span>
-              <span style={{ fontSize: "11px", color: "#3a3a5a" }}>{ep.desc}</span>
-            </div>
-          ))}
+        <div className="endpoint-box">
+          <span className="method">GET </span>
+          <span className="path">/api/dino</span>
+          <span style={{ color: "rgba(0,255,140,0.4)", marginLeft: "12px" }}>→ returns dino metadata</span>
         </div>
+      </div>
 
+      <div style={{ marginTop: "32px", fontFamily: "'Space Mono', monospace", fontSize: "10px", color: "rgba(0,255,140,0.2)", letterSpacing: "0.15em" }}>
+        RAWR XD • FASTAPI + REACT • RAILWAY
       </div>
     </div>
   );
