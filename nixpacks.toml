@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ["python311", "nodejs_20", "nodePackages.npm"]
+
+[phases.build]
+cmds = [
+  "pip install -r requirements.txt",
+  "npm install --prefix frontend",
+  "npm run build --prefix frontend"
+]
+
+[start]
+cmd = "gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
