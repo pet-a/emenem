@@ -114,6 +114,36 @@ const COINS = [
   { id: 6, x: 600, y: GROUND - 30, collected: false },
 ];
 
+function MobileBtn({ onPress, onRelease, label, big }) {
+  const [pressed, setPressed] = useState(false);
+  return (
+    <button
+      onPointerDown={(e) => { e.preventDefault(); setPressed(true); onPress(); }}
+      onPointerUp={(e) => { e.preventDefault(); setPressed(false); onRelease(); }}
+      onPointerLeave={(e) => { e.preventDefault(); setPressed(false); onRelease(); }}
+      style={{
+        width: big ? "72px" : "60px",
+        height: big ? "72px" : "60px",
+        borderRadius: "50%",
+        border: "2px solid rgba(78,207,110,0.4)",
+        background: pressed ? "rgba(78,207,110,0.35)" : "rgba(78,207,110,0.12)",
+        color: "#3ecf6e",
+        fontSize: big ? "26px" : "22px",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        touchAction: "none",
+        WebkitTapHighlightColor: "transparent",
+        transition: "background 0.1s",
+        boxShadow: pressed ? "0 0 16px rgba(78,207,110,0.4)" : "none",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function App() {
   const stateRef = useRef({
     x: 100, y: GROUND - 72,
@@ -315,11 +345,40 @@ export default function App() {
           opacity={0.15}
         />
 
-        {/* Controls hint */}
+        {/* Controls hint - desktop only */}
         <text x={10} y={H - 10} fontSize="11" fill="rgba(255,255,255,0.3)" fontFamily="monospace">
           ← → move  ↑ / space jump  ★ collect coins
         </text>
       </svg>
+
+      {/* Mobile controls */}
+      <div style={{
+        display: "flex",
+        gap: "12px",
+        marginTop: "16px",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        {/* Left */}
+        <MobileBtn
+          onPress={() => { keysRef.current["ArrowLeft"] = true; }}
+          onRelease={() => { keysRef.current["ArrowLeft"] = false; }}
+          label="◀"
+        />
+        {/* Jump */}
+        <MobileBtn
+          onPress={() => { keysRef.current["ArrowUp"] = true; }}
+          onRelease={() => { keysRef.current["ArrowUp"] = false; }}
+          label="▲"
+          big
+        />
+        {/* Right */}
+        <MobileBtn
+          onPress={() => { keysRef.current["ArrowRight"] = true; }}
+          onRelease={() => { keysRef.current["ArrowRight"] = false; }}
+          label="▶"
+        />
+      </div>
     </div>
   );
 }
