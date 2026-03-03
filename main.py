@@ -26,9 +26,9 @@ Base = declarative_base()
 
 class TaskModel(Base):
     __tablename__ = "tasks"
-    id         = Column(String,   primary_key=True, default=lambda: str(uuid.uuid4()))
-    title      = Column(String,   nullable=False)
-    done       = Column(Boolean,  default=False)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    title = Column(String, nullable=False)
+    done = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -42,17 +42,20 @@ def get_db():
 
 # ─── Startup / shutdown ───────────────────────────────────────────────────────
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         if db.query(TaskModel).count() == 0:
-            db.add_all([
-                TaskModel(title="Read the FastAPI docs",   done=True),
-                TaskModel(title="Build something awesome", done=False),
-                TaskModel(title="Ship to production",      done=False),
-            ])
+            db.add_all(
+                [
+                    TaskModel(title="Read the FastAPI docs", done=True),
+                    TaskModel(title="Build something awesome", done=False),
+                    TaskModel(title="Ship to production", done=False),
+                ]
+            )
             db.commit()
     finally:
         db.close()
@@ -64,30 +67,37 @@ app = FastAPI(title="Taskr API", version="1.0.0", lifespan=lifespan)
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
 
+
 class Task(BaseModel):
     id: str
     title: str
     done: bool
     created_at: str
 
+
 class TaskCreate(BaseModel):
     title: str
 
 
 def to_task(m: TaskModel) -> Task:
-    return Task(id=m.id, title=m.title, done=m.done, created_at=m.created_at.isoformat())
+    return Task(
+        id=m.id, title=m.title, done=m.done, created_at=m.created_at.isoformat()
+    )
 
 
 # ─── API routes (all prefixed /api) ──────────────────────────────────────────
 
+
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "dist_exists": os.path.exists(DIST), "dist_path": DIST}
 
 
 @app.get("/api/tasks", response_model=List[Task])
 def list_tasks(db: Session = Depends(get_db)):
-    return [to_task(t) for t in db.query(TaskModel).order_by(TaskModel.created_at).all()]
+    return [
+        to_task(t) for t in db.query(TaskModel).order_by(TaskModel.created_at).all()
+    ]
 
 
 @app.post("/api/tasks", response_model=Task, status_code=201)
@@ -122,16 +132,18 @@ def delete_task(task_id: str, db: Session = Depends(get_db)):
 @app.get("/api/stats")
 def get_stats(db: Session = Depends(get_db)):
     total = db.query(TaskModel).count()
-    done  = db.query(TaskModel).filter(TaskModel.done == True).count()
+    done = db.query(TaskModel).filter(TaskModel.done == True).count()
     return {"total": total, "done": done, "pending": total - done}
 
 
 # ─── Serve React SPA (must come last) ────────────────────────────────────────
 
-DIST = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "dist")
 
 if os.path.exists(DIST):
-    app.mount("/assets", StaticFiles(directory=os.path.join(DIST, "assets")), name="assets")
+    app.mount(
+        "/assets", StaticFiles(directory=os.path.join(DIST, "assets")), name="assets"
+    )
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str):
