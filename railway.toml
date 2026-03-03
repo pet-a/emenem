@@ -1,5 +1,5 @@
 [build]
-buildCommand = "pip install -r requirements.txt && cd frontend && npm install && npm run build"
+buildCommand = "pip install -r requirements.txt && npm install --prefix frontend && npm run build --prefix frontend"
 
 [deploy]
 startCommand = "gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
