@@ -153,7 +153,10 @@ def get_dino():
 DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "dist")
 INDEX = os.path.join(DIST, "index.html")
 
-app.mount("/assets", StaticFiles(directory=os.path.join(DIST, "assets")), name="assets")
+if os.path.isdir(os.path.join(DIST, "assets")):
+    app.mount(
+        "/assets", StaticFiles(directory=os.path.join(DIST, "assets")), name="assets"
+    )
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
