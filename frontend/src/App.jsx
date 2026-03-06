@@ -153,6 +153,7 @@ export default function App() {
     frame: 0,
     coins: COINS.map(c => ({ ...c })),
     score: 0,
+    time: 0,
   });
   const keysRef = useRef({});
   const rafRef = useRef();
@@ -173,6 +174,7 @@ export default function App() {
       const keys = keysRef.current;
 
       s.frame++;
+      s.time++;
 
       // Horizontal movement
       if (keys["ArrowLeft"]) { s.vx = -SPEED; s.flipped = true; }
@@ -244,6 +246,10 @@ export default function App() {
 
   const s = stateRef.current;
   const walking = s.vx !== 0;
+  const elapsed = Math.floor(s.time / 60); // Convert frames to seconds (60 FPS)
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
   return (
     <div style={{
@@ -270,6 +276,14 @@ export default function App() {
         letterSpacing: "0.2em", marginBottom: "10px",
       }}>
         ★ SCORE: {s.score}
+      </div>
+
+      {/* Timer */}
+      <div style={{
+        color: "#ff88ff", fontSize: "18px", fontWeight: "bold",
+        letterSpacing: "0.2em", marginBottom: "10px",
+      }}>
+        ⏱ TIME: {timeString}
       </div>
 
       {/* Game canvas */}
